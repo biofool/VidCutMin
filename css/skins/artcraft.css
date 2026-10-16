@@ -1,0 +1,17 @@
+/* ArtCraft — light, playful, chunky craft-tool look */
+html[data-skin="artcraft"]{
+  --font:'Trebuchet MS',system-ui,sans-serif; --mono:'Courier New',monospace;
+  --ac:#e0407a; --ac-fg:#fff;
+  --bg:#faf3ea; --bg2:#fff8ef; --bg3:#f3e8d8; --card:#fff;
+  --bd:#3d2f2a; --bw:2px; --rad:10px; --dot-rad:99px;
+  --tx:#3d2f2a; --mt:#8a7568; --er:#c0392b;
+  --panel-head:#ffe9c9;
+  --hover:rgba(224,64,122,.08); --sel:rgba(224,64,122,.15);
+  --btn-bg:#ffe9c9; --btn-hover:#ffd9a3;
+  --inp-bg:#fff; --tlbg:#fff; --scroll:#e0407a55;
+}
+html[data-skin="artcraft"] .cut-item{box-shadow:0 1px 0 var(--bd)}
+html[data-skin="artcraft"] .mb,.btn-accent,.cut-item{border:var(--bw) solid var(--bd);box-shadow:2px 2px 0 var(--bd)}
+html[data-skin="artcraft"] .mb:active,.btn-accent:active{box-shadow:0 0 0 var(--bd);transform:translate(2px,2px)}
+html[data-skin="artcraft"] #tl{border:var(--bw) solid var(--bd)}
+html[data-skin="artcraft"] #stage{background:#2b2118}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" data-skin="snapcut">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VidCutMin — browser video editor</title>
+<link rel="stylesheet" href="css/base.css">
+<link id="skin-css" rel="stylesheet" href="css/skins/snapcut.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <span class="brand">✂ VidCutMin</span>
+    <button id="btn-open" class="mb">Open media</button>
+    <input type="file" id="file-input" accept="video/*,audio/*" hidden>
+    <span id="media-info" class="dim">No file loaded — drop a video anywhere</span>
+    <div class="spacer"></div>
+    <label class="dim">Skin</label>
+    <select id="skin-select" class="mi">
+      <option value="snapcut">SnapCut</option>
+      <option value="shotcut">ShotCut</option>
+      <option value="artcraft">ArtCraft</option>
+    </select>
+    <input id="jump-input" class="mi mono" placeholder="0:00" title="Jump to time (1:23 or 0:01:23)">
+    <button id="btn-jump" class="mb">Go</button>
+  </header>
+
+  <div id="main">
+    <aside id="left-panel">
+      <div class="ph">
+        <span>Cuts</span>
+        <span class="ha">
+          <button id="btn-addcut" class="mb" title="Add cut at playhead [N]">+</button>
+          <button id="btn-markcut" class="mb" title="Cut from In/Out marks">Mark→Cut</button>
+        </span>
+      </div>
+      <div id="cuts-list"><div class="empty">Open media, then add cuts</div></div>
+      <div class="marks">
+        <button id="btn-in" class="mb" title="Set In [I]">In [I]</button>
+        <button id="btn-out" class="mb" title="Set Out [O]">Out [O]</button>
+        <div class="marks-disp"><span class="dim">In</span> <span id="mi-disp" class="mono">--:--</span>
+        <span class="dim">Out</span> <span id="mo-disp" class="mono">--:--</span></div>
+      </div>
+    </aside>
+
+    <section id="center">
+      <div id="stage">
+        <video id="vid" preload="metadata"></video>
+        <div id="drop-hint">Drop video/audio here</div>
+      </div>
+      <div id="tl-area">
+        <canvas id="tl" height="56"></canvas>
+        <div id="tl-times"><span id="tl-s">0:00</span><span id="tl-m"></span><span id="tl-e">0:00</span></div>
+      </div>
+      <div id="export-bar">
+        <button id="btn-playall" class="mb">Play sequence</button>
+        <button id="btn-edl" class="mb">Export EDL/JSON</button>
+        <button id="btn-render" class="btn-accent">Render WebM</button>
+        <span id="status" class="dim"></span>
+      </div>
+    </section>
+
+    <aside id="right-panel">
+      <div class="ph"><span>Clip settings</span></div>
+      <div id="settings" class="pb">
+        <div class="sg"><label class="sl">Name</label><input id="s-name" class="mi" disabled></div>
+        <div class="sg"><label class="sl">Start</label><input id="s-start" class="mi mono" disabled></div>
+        <div class="sg"><label class="sl">End</label><input id="s-end" class="mi mono" disabled></div>
+        <div class="sg"><label class="sl">Fade in (s)</label><input id="s-fadein" class="mi" type="number" min="0" step="0.1" disabled></div>
+        <div class="sg"><label class="sl">Fade out (s)</label><input id="s-fadeout" class="mi" type="number" min="0" step="0.1" disabled></div>
+        <div class="sg"><label class="sl">Volume</label><input id="s-vol" class="mi" type="range" min="0" max="1" step="0.05" disabled></div>
+        <hr class="hr">
+        <div class="sg"><label class="sl">Caption text</label><textarea id="s-cap" class="mi" rows="3" disabled></textarea></div>
+        <div class="dim" style="font-size:.72rem">Space play/pause · ←/→ frame · I/O marks · N new cut · Del removes selected</div>
+      </div>
+    </aside>
+  </div>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

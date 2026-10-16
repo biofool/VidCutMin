@@ -1,0 +1,6 @@
+*.webm
+*.mp4
+*.mov
+*.mkv
+node_modules/
+.DS_Store
