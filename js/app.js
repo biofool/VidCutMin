@@ -30,7 +30,7 @@ vid.addEventListener('loadedmetadata', () => { S.dur = vid.duration; drawTL(); }
 vid.addEventListener('timeupdate', () => {
   if(S.playAll){
     const c = S.playAll.list[S.playAll.i];
-    if(vid.currentTime >= c.end - 0.03){ nextInSeq(); }
+    if(c && vid.currentTime >= c.end - 0.03) nextInSeq();
   }
 });
 vid.addEventListener('ended', () => { if(S.playAll) nextInSeq(); });
@@ -190,10 +190,14 @@ $('btn-playall').onclick = () => {
 };
 function playSeqItem(){
   const c = S.playAll.list[S.playAll.i];
-  selCut(c.id); vid.volume = c.vol; vid.currentTime = c.start; vid.play();
+  selCut(c.id); vid.volume = c.vol; vid.currentTime = c.start;
+  vid.play().catch(e => { status('Play blocked: '+e.message); S.playAll=null; });
+  const it = document.querySelector(`.cut-item[data-id="${c.id}"]`);
+  if(it) it.scrollIntoView({block:'nearest'});
   status(`Playing ${S.playAll.i+1}/${S.playAll.list.length}: ${c.name}`);
 }
 function nextInSeq(){
+  if(!S.playAll) return;
   if(++S.playAll.i < S.playAll.list.length) playSeqItem();
   else { S.playAll=null; vid.pause(); vid.volume=1; status('Sequence done'); }
 }
