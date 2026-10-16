@@ -20,6 +20,7 @@ const status = m => $('status').textContent = m;
 
 // ---------- media ----------
 function loadFile(file){
+  if(S.rendering){ status('Rendering in progress — wait for it to finish'); return; }
   if(S.url) URL.revokeObjectURL(S.url);
   S.url = URL.createObjectURL(file); S.name = file.name;
   S.cuts=[]; S.active=null; S.mi=S.mo=null; S.playAll=null; S.dur=0; cutN=0;
@@ -91,7 +92,7 @@ $('cuts-list').addEventListener('click', e => {
 const F = {name:'s-name', start:'s-start', end:'s-end', fadeIn:'s-fadein', fadeOut:'s-fadeout', vol:'s-vol', cap:'s-cap'};
 function bindSettings(){
   const c = activeCut();
-  for(const k in F){ $(F[k]).disabled = !c; }
+  for(const k in F){ const el=$(F[k]); el.disabled = !c; if(el===document.activeElement) el.blur(); }
   if(!c){ for(const k in F) $(F[k]).value=''; return; }
   $('s-name').value=c.name; $('s-start').value=fmt(c.start); $('s-end').value=fmt(c.end);
   $('s-fadein').value=c.fadeIn; $('s-fadeout').value=c.fadeOut; $('s-vol').value=c.vol; $('s-cap').value=c.cap;
@@ -218,10 +219,10 @@ $('btn-edl').onclick = () => {
   download(new Blob([JSON.stringify(edl,null,2)],{type:'application/json'}),(S.name||'edit')+'.edl.json');
   // also ffmpeg concat script for lossless-ish render (needs an audio stream in the source)
   if(!S.cuts.length) return;
-  const safeName = (S.name||'input.mp4').replace(/"/g,'\\"');
-  const ff = ['# ffmpeg render script','# usage: bash render.sh — requires the source to have an audio stream',`INPUT="${safeName}"`,
-    'FILTER='+S.cuts.map((c,i)=>`[0:v]trim=${c.start}:${c.end},setpts=PTS-STARTPTS[v${i}];[0:a]atrim=${c.start}:${c.end},asetpts=PTS-STARTPTS[a${i}];`).join('\\\n  '),
-    '  '+S.cuts.map((c,i)=>`[v${i}][a${i}]`).join('')+`concat=n=${S.cuts.length}:v=1:a=1[v][a]`,
+  const safeName = (S.name||'input.mp4').replace(/'/g,"'\\''");
+  const ff = ['# ffmpeg render script','# usage: bash render.sh — requires the source to have an audio stream',`INPUT='${safeName}'`,
+    "FILTER='"+S.cuts.map((c,i)=>`[0:v]trim=${c.start}:${c.end},setpts=PTS-STARTPTS[v${i}];[0:a]atrim=${c.start}:${c.end},asetpts=PTS-STARTPTS[a${i}];`).join('') +
+    S.cuts.map((c,i)=>`[v${i}][a${i}]`).join('')+`concat=n=${S.cuts.length}:v=1:a=1[v][a]`+"'",
     `ffmpeg -i "$INPUT" -filter_complex "$FILTER" -map "[v]" -map "[a]" output.mp4`].join('\n');
   download(new Blob([ff],{type:'text/x-sh'}),'render.sh');
 };
@@ -245,7 +246,8 @@ $('btn-render').onclick = async () => {
   const cx = cv.getContext('2d');
   const cs = cv.captureStream(30);
   const {gain, dest} = buildAudio();
-  cs.addTrack(dest.stream.getAudioTracks()[0]);
+  const aTrack = dest.stream.getAudioTracks()[0];
+  if(aTrack) cs.addTrack(aTrack); else status('No audio stream — video-only output');
   const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm';
   const rec = new MediaRecorder(cs, {mimeType:mime, videoBitsPerSecond:8e6});
   const chunks = []; rec.ondataavailable = e => chunks.push(e.data);
