@@ -52,14 +52,16 @@ function newCut(st,en){
   const c = {id:++cutN, name:'Cut '+cutN, start:st, end:en, fadeIn:0, fadeOut:0, vol:1, cap:''};
   S.cuts.push(c); S.active = c.id; renderCuts(); drawTL(); bindSettings();
 }
-$('btn-addcut').onclick = () => { if(!S.dur) return; const t=vid.currentTime;
+const busy = () => { if(S.rendering){ status('Rendering — controls locked'); return true; } return false; };
+$('btn-addcut').onclick = () => { if(busy()||!S.dur) return; const t=vid.currentTime;
   if(S.dur-t < 0.2){ status('No room for a cut at playhead'); return; }
   newCut(t, clamp(t+Math.min(30,S.dur-t), 0, S.dur)); };
 $('btn-markcut').onclick = () => {
+  if(busy()) return;
   if(S.mi==null||S.mo==null){ status('Mark In and Out first'); return; }
   newCut(Math.min(S.mi,S.mo), Math.max(S.mi,S.mo)); S.mi=S.mo=null; updMarks(); };
-$('btn-in').onclick = () => { S.mi=vid.currentTime; updMarks(); drawTL(); };
-$('btn-out').onclick = () => { S.mo=vid.currentTime; updMarks(); drawTL(); };
+$('btn-in').onclick = () => { if(busy()) return; S.mi=vid.currentTime; updMarks(); drawTL(); };
+$('btn-out').onclick = () => { if(busy()) return; S.mo=vid.currentTime; updMarks(); drawTL(); };
 function updMarks(){ $('mi-disp').textContent = fmt(S.mi); $('mo-disp').textContent = fmt(S.mo); }
 
 function delCut(id){ S.cuts = S.cuts.filter(c=>c.id!==id);
@@ -82,6 +84,7 @@ function renderCuts(){
     </div>`).join('');
 }
 $('cuts-list').addEventListener('click', e => {
+  if(S.rendering) return;
   const del = e.target.closest('[data-del]');
   if(del){ delCut(+del.dataset.del); return; }
   const it = e.target.closest('.cut-item');
@@ -150,6 +153,7 @@ vid.addEventListener('timeupdate', () => { const t=vid.currentTime;
 window.addEventListener('resize', drawTL);
 
 tl.addEventListener('mousedown', e => {
+  if(S.rendering) return;
   const t = x2t(e.clientX), pps = (tl.getBoundingClientRect().width-TLP*2)/(S.dur||1);
   for(const c of S.cuts){
     if(Math.abs(t-c.end)*pps < 6){ S.drag={id:c.id,h:'end'}; return selCut(c.id); }
@@ -171,12 +175,12 @@ window.addEventListener('mouseup', () => S.drag=null);
 
 // ---------- transport ----------
 $('btn-jump').onclick = () => { const t=parse($('jump-input').value);
-  if(isNaN(t)||!S.dur) return; vid.currentTime=clamp(t,0,S.dur); $('jump-input').value=''; };
+  if(isNaN(t)||!S.dur||S.rendering) return; vid.currentTime=clamp(t,0,S.dur); $('jump-input').value=''; };
 $('jump-input').addEventListener('keydown', e => { if(e.key==='Enter') $('btn-jump').click(); });
 
 document.addEventListener('keydown', e => {
   if(e.target.matches('input,textarea,select') || S.rendering) return;
-  if(e.code==='Space'){ e.preventDefault(); vid.paused?vid.play():vid.pause(); }
+  if(e.code==='Space'){ e.preventDefault(); if(!vid.src) return; vid.paused?vid.play().catch(()=>{}):vid.pause(); }
   else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
     e.preventDefault(); vid.currentTime=clamp(vid.currentTime+(e.key==='ArrowRight'?1:-1)*(e.shiftKey?5:1/30),0,S.dur); }
   else if(e.key==='i'||e.key==='I') $('btn-in').click();
