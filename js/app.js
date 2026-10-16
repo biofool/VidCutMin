@@ -22,7 +22,9 @@ const status = m => $('status').textContent = m;
 function loadFile(file){
   if(S.url) URL.revokeObjectURL(S.url);
   S.url = URL.createObjectURL(file); S.name = file.name;
-  vid.src = S.url; vid.load();
+  S.cuts=[]; S.active=null; S.mi=S.mo=null; S.playAll=null; S.dur=0; cutN=0;
+  vid.volume=1; vid.src = S.url; vid.load();
+  renderCuts(); bindSettings(); updMarks(); drawTL(); status('');
   $('stage').classList.add('filled');
   $('media-info').textContent = file.name + ' · ' + (file.size/1048576).toFixed(1) + ' MB';
 }
@@ -50,6 +52,7 @@ function newCut(st,en){
   S.cuts.push(c); S.active = c.id; renderCuts(); drawTL(); bindSettings();
 }
 $('btn-addcut').onclick = () => { if(!S.dur) return; const t=vid.currentTime;
+  if(S.dur-t < 0.2){ status('No room for a cut at playhead'); return; }
   newCut(t, clamp(t+Math.min(30,S.dur-t), 0, S.dur)); };
 $('btn-markcut').onclick = () => {
   if(S.mi==null||S.mo==null){ status('Mark In and Out first'); return; }
@@ -171,7 +174,7 @@ $('btn-jump').onclick = () => { const t=parse($('jump-input').value);
 $('jump-input').addEventListener('keydown', e => { if(e.key==='Enter') $('btn-jump').click(); });
 
 document.addEventListener('keydown', e => {
-  if(e.target.matches('input,textarea,select')) return;
+  if(e.target.matches('input,textarea,select') || S.rendering) return;
   if(e.code==='Space'){ e.preventDefault(); vid.paused?vid.play():vid.pause(); }
   else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
     e.preventDefault(); vid.currentTime=clamp(vid.currentTime+(e.key==='ArrowRight'?1:-1)*(e.shiftKey?5:1/30),0,S.dur); }
@@ -183,7 +186,8 @@ document.addEventListener('keydown', e => {
 
 // ---------- playback of full sequence ----------
 $('btn-playall').onclick = () => {
-  if(S.playAll){ S.playAll=null; vid.pause(); status(''); return; }
+  if(S.playAll){ S.playAll=null; vid.pause(); vid.volume=1; status(''); return; }
+  if(S.rendering){ status('Rendering in progress'); return; }
   if(!S.cuts.length){ status('No cuts'); return; }
   S.playAll = {list:[...S.cuts].sort((a,b)=>a.start-b.start), i:0};
   playSeqItem();
@@ -212,8 +216,10 @@ $('btn-edl').onclick = () => {
   const edl = {source:S.name, duration:S.dur,
     cuts:S.cuts.map(c=>({name:c.name,start:c.start,end:c.end,fadeIn:c.fadeIn,fadeOut:c.fadeOut,vol:c.vol,caption:c.cap}))};
   download(new Blob([JSON.stringify(edl,null,2)],{type:'application/json'}),(S.name||'edit')+'.edl.json');
-  // also ffmpeg concat script for lossless-ish render
-  const ff = ['# ffmpeg render script','# usage: bash render.sh',`INPUT="${S.name||'input.mp4'}"`,
+  // also ffmpeg concat script for lossless-ish render (needs an audio stream in the source)
+  if(!S.cuts.length) return;
+  const safeName = (S.name||'input.mp4').replace(/"/g,'\\"');
+  const ff = ['# ffmpeg render script','# usage: bash render.sh — requires the source to have an audio stream',`INPUT="${safeName}"`,
     'FILTER='+S.cuts.map((c,i)=>`[0:v]trim=${c.start}:${c.end},setpts=PTS-STARTPTS[v${i}];[0:a]atrim=${c.start}:${c.end},asetpts=PTS-STARTPTS[a${i}];`).join('\\\n  '),
     '  '+S.cuts.map((c,i)=>`[v${i}][a${i}]`).join('')+`concat=n=${S.cuts.length}:v=1:a=1[v][a]`,
     `ffmpeg -i "$INPUT" -filter_complex "$FILTER" -map "[v]" -map "[a]" output.mp4`].join('\n');
@@ -221,23 +227,32 @@ $('btn-edl').onclick = () => {
 };
 
 // MediaRecorder render: plays each cut through a canvas + audio graph
+let audioGraph = null; // built once: createMediaElementSource may only run once per element
+function buildAudio(){
+  if(audioGraph) return audioGraph;
+  const actx = new AudioContext(), src = actx.createMediaElementSource(vid),
+    gain = actx.createGain(), dest = actx.createMediaStreamDestination();
+  src.connect(gain); gain.connect(dest); gain.connect(actx.destination);
+  return audioGraph = {actx, gain, dest};
+}
 $('btn-render').onclick = async () => {
+  if(S.rendering) return;
+  if(S.playAll){ status('Stop the sequence first'); return; }
   if(!S.cuts.length){ status('No cuts to render'); return; }
   if(!('captureStream' in vid) || !('MediaRecorder' in window)){ status('MediaRecorder not supported'); return; }
   const cv = document.createElement('canvas');
   cv.width = vid.videoWidth||1280; cv.height = vid.videoHeight||720;
   const cx = cv.getContext('2d');
   const cs = cv.captureStream(30);
-  const actx = new AudioContext(), src = actx.createMediaElementSource(vid),
-    gain = actx.createGain(), dest = actx.createMediaStreamDestination();
-  src.connect(gain); gain.connect(dest); gain.connect(actx.destination);
+  const {gain, dest} = buildAudio();
   cs.addTrack(dest.stream.getAudioTracks()[0]);
   const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm';
   const rec = new MediaRecorder(cs, {mimeType:mime, videoBitsPerSecond:8e6});
   const chunks = []; rec.ondataavailable = e => chunks.push(e.data);
   rec.onstop = () => {
+    S.rendering = false;
     download(new Blob(chunks,{type:'video/webm'}),'vidcutmin.webm');
-    src.disconnect(); actx.close(); status('Rendered vidcutmin.webm');
+    status('Rendered vidcutmin.webm');
   };
   const list = [...S.cuts].sort((a,b)=>a.start-b.start);
   status('Rendering… do not navigate away');
@@ -249,15 +264,21 @@ $('btn-render').onclick = async () => {
     raf = requestAnimationFrame(paint);
   };
   paint();
-  for(const c of list){
-    vid.currentTime = c.start; gain.gain.value = c.vol;
-    await vid.play();
-    await new Promise(res => {
-      const chk = () => vid.currentTime >= c.end - 0.04 ? res() : setTimeout(chk,40); chk();
-    });
-    vid.pause();
+  S.rendering = true;
+  try{
+    for(const c of list){
+      const end = Math.min(c.end, S.dur);
+      vid.currentTime = Math.min(c.start, end); gain.gain.value = c.vol;
+      await vid.play();
+      await new Promise(res => {
+        const chk = () => (vid.paused || vid.ended || vid.currentTime >= end - 0.04)
+          ? res() : setTimeout(chk,40); chk();
+      });
+      vid.pause();
+    }
+  } finally {
+    cancelAnimationFrame(raf); rec.stop(); vid.volume = 1; gain.gain.value = 1;
   }
-  cancelAnimationFrame(raf); rec.stop();
 };
 
 // ---------- skins ----------
